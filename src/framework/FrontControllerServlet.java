@@ -9,7 +9,6 @@ import java.io.PrintWriter;
 import java.util.Set;
 
 public class FrontControllerServlet extends HttpServlet {
-
     protected void processRequest(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
 
