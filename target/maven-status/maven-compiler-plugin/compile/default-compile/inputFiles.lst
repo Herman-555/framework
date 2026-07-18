@@ -1,7 +1,7 @@
-C:\Users\ME-PC\Documents\GitHub\framework\src\com\framework\corps\AppContextListener.java
-C:\Users\ME-PC\Documents\GitHub\framework\src\com\framework\corps\FrontControllerServlet.java
-C:\Users\ME-PC\Documents\GitHub\framework\src\com\framework\Mapping\UrlMapping.java
-C:\Users\ME-PC\Documents\GitHub\framework\src\mg\itu\framework\controller\Controller.java
-C:\Users\ME-PC\Documents\GitHub\framework\src\mg\itu\framework\exception\DuplicateUrlException.java
-C:\Users\ME-PC\Documents\GitHub\framework\src\mg\itu\framework\mapping\Methode.java
-C:\Users\ME-PC\Documents\GitHub\framework\src\mg\itu\framework\mapping\UrlMethod.java
+/home/main/Documents/L2/s4/Spring/Sprint_vrai (Copie)/src/mg/itu/utils/MethodInfo.java
+/home/main/Documents/L2/s4/Spring/Sprint_vrai (Copie)/src/mg/itu/annotation/Controller/Controller.java
+/home/main/Documents/L2/s4/Spring/Sprint_vrai (Copie)/src/mg/itu/utils/UrlMethod.java
+/home/main/Documents/L2/s4/Spring/Sprint_vrai (Copie)/src/mg/itu/Servlet/Test.java
+/home/main/Documents/L2/s4/Spring/Sprint_vrai (Copie)/src/mg/itu/annotation/Url/UrlMapping.java
+/home/main/Documents/L2/s4/Spring/Sprint_vrai (Copie)/src/mg/itu/utils/PackageScanner.java
+/home/main/Documents/L2/s4/Spring/Sprint_vrai (Copie)/src/mg/itu/Servlet/FrontControllerServlet.java
