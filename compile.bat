@@ -1,13 +1,19 @@
 @echo off
-REM Suppression du dossier bin et du jar existant
-if exist bin rd /s /q bin
-if exist framework.jar del /f /q framework.jar
+echo =========================================
+echo Compilation du Framework Java 8 (JAR)
+echo =========================================
 
-REM Création du dossier de sortie
-mkdir bin
+REM Nettoyage et packaging via Maven
+call mvn clean package
 
-REM Compilation des sources Java
-javac -source 17 -target 17 -cp "lib/jakarta.servlet-api-6.0.0.jar" -d bin src/framework/*.java
+IF %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo [ERREUR] La compilation a échoué. Veuillez vérifier les erreurs ci-dessus.
+    pause
+    exit /b %ERRORLEVEL%
+)
 
-REM Création de l'archive JAR
-jar cvf framework.jar -C bin .
+echo.
+echo [SUCCÈS] Le framework a été compilé avec succès !
+echo Le fichier JAR se trouve dans le dossier 'target/'.
+pause

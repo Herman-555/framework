@@ -1,51 +1,100 @@
 package framework;
 
-import jakarta.servlet.http.HttpServlet;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.ServletException;
+import framework.annotation.WebApi;
+import com.google.gson.Gson;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.Set;
+import java.lang.reflect.Method;
 
 public class FrontControllerServlet extends HttpServlet {
 
-    protected void processRequest(HttpServletRequest req, HttpServletResponse resp)
+    private Gson gson;
+
+    @Override
+    public void init() throws ServletException {
+        super.init();
+
+        //Initialisation de json
+        this.gson = new Gson();
+        
+        // C'est ici dans init() qu'on peut scanner les contrôleurs au démarrage 
+        // et charger le dictionnaire de routes (Path -> Method)
+    }
+
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) 
             throws ServletException, IOException {
+        processRequest(req, resp);
+    }
 
-        String uri = req.getRequestURI();
-        String contextPath = req.getContextPath();
-        String chemin = uri.substring(contextPath.length());
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) 
+            throws ServletException, IOException {
+        processRequest(req, resp);
+    }
 
-        LinkCollector.add(chemin);
-        resp.setContentType("text/html");
-        PrintWriter out = resp.getWriter();
+    protected void processRequest(HttpServletRequest req, HttpServletResponse resp) 
+            throws ServletException, IOException {
+        try {
+            // Exemple : Récupération de la méthode invoquée d'après votre routing
+            Method targetMethod = getTargetMethodForRequest(req); 
+            Object controllerInstance = getControllerInstanceForRequest(req);
 
-        out.println("<!DOCTYPE html>");
-        out.println("<html><head><title>Framework - URLs capturées</title></head><body>");
-        out.println("<h1>URL demandée : " + chemin + "</h1>");
-        out.println("<h2>Toutes les URLs capturées :</h2>");
-        out.println("<ul>");
+            if (targetMethod != null && controllerInstance != null) {
+                
+                // Exécution de la méthode du contrôleur
+                Object result = targetMethod.invoke(controllerInstance);
 
-        Set<String> liens = LinkCollector.getAll();
-        for (String lien : liens) {
-            out.println("<li>" + lien + "</li>");
+                // Vérification de la présence de l'annotation @WebApi
+                if (targetMethod.isAnnotationPresent(WebApi.class)) {
+                    
+                    if (result instanceof String) {
+                        // Si c'est une chaîne de caractères, on l'affiche directement
+                        resp.setContentType("text/plain;charset=UTF-8");
+                        PrintWriter out = resp.getWriter();
+                        out.print(result);
+                        out.flush();
+                    } else {
+                        // Si ce n'est pas un String, on formate en JSON via le formatter Gson importé
+                        resp.setContentType("application/json;charset=UTF-8");
+                        String jsonResponse = gson.toJson(result);
+                        PrintWriter out = resp.getWriter();
+                        out.print(jsonResponse);
+                        out.flush();
+                    }
+
+                } else {
+                    // L'annotation @WebApi n'est pas présente : comportement classique (View/JSP)
+                    if (result instanceof String) {
+                        String viewPath = (String) result;
+                        req.getRequestDispatcher(viewPath).forward(req, resp);
+                    } else {
+                        // Traitement par défaut si la méthode ne renvoie pas une vue String
+                        req.getRequestDispatcher("/index.jsp").forward(req, resp);
+                    }
+                }
+            } else {
+                resp.sendError(HttpServletResponse.SC_NOT_FOUND, "Ressource introuvable");
+            }
+
+        } catch (Exception e) {
+            throw new ServletException("Erreur lors du traitement de la requête", e);
         }
-
-        out.println("</ul>");
-        out.println("<p>Total : " + liens.size() + " URL(s)</p>");
-        out.println("</body></html>");
     }
 
-    @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
-        processRequest(req, resp);
+    // Méthodes fictives à adapter selon la logique de votre scanner de routes
+    private Method getTargetMethodForRequest(HttpServletRequest req) {
+        // Retourne la méthode associée à l'URL demandée
+        return null; 
     }
 
-    @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
-        processRequest(req, resp);
+    private Object getControllerInstanceForRequest(HttpServletRequest req) {
+        // Retourne l'instance du contrôleur associé
+        return null;
     }
 }

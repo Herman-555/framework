@@ -1,9 +1,0 @@
-{
-    "java.project.sourcePaths": [
-        "src"
-    ],
-    "java.project.referencedLibraries": [
-        "lib/jakarta.servlet-api-6.0.0.jar"
-    ],
-    "java.project.outputPath": "bin"
-}
