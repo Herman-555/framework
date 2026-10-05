@@ -2,13 +2,9 @@ package framework;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.lang.reflect.Method;
 import java.net.URLDecoder;
-import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import javax.servlet.ServletException;
@@ -16,112 +12,112 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import com.google.gson.Gson;
-
 import framework.annotation.Controller;
 import framework.annotation.UrlMapping;
-import framework.annotation.WebApi;
 
 public class FrontControllerServlet extends HttpServlet {
 
-    private List<String> controllers = new ArrayList<>();
     private Map<String, VerbAction> mappings = new HashMap<>();
-    private Gson gson = new Gson();
 
     @Override
     public void init() throws ServletException {
         super.init();
         try {
+            // Récupère le chemin physique du dossier WEB-INF/classes du projet client
+            String realPath = getServletContext().getRealPath("/WEB-INF/classes");
             
-            Enumeration<java.net.URL> roots = Thread.currentThread()
-                    .getContextClassLoader()
-                    .getResources("");
-
-            while (roots.hasMoreElements()) {
-                String path = roots.nextElement().getFile();
-                File dir = new File(URLDecoder.decode(path, "UTF-8"));
-                scanClasses(dir, "");
+            if (realPath != null) {
+                File classesDir = new File(URLDecoder.decode(realPath, "UTF-8"));
+                if (classesDir.exists()) {
+                    scanDirectory(classesDir, "");
+                }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new ServletException("Erreur lors de l'initialisation du mapping dynamique", e);
         }
     }
 
-    private void scanClasses(File dir, String pkg) {
-        if (dir == null || !dir.exists()) return;
+    /**
+     * Parcours récursif des fichiers .class pour trouver les @Controller et leurs @UrlMapping
+     */
+    private void scanDirectory(File dir, String packageName) {
+        File[] files = dir.listFiles();
+        if (files == null) return;
 
-        for (File f : dir.listFiles()) {
-            if (f.isDirectory()) {
-                scanClasses(f, pkg + (pkg.isEmpty() ? "" : ".") + f.getName());
-            } else if (f.getName().endsWith(".class")) {
-                try {
-                    String className = pkg + "." + f.getName().replace(".class", "");
-                    Class<?> clazz = Class.forName(className);
+        for (File file : files) {
+            if (file.isDirectory()) {
+                String subPackage = packageName.isEmpty() ? file.getName() : packageName + "." + file.getName();
+                scanDirectory(file, subPackage);
+            } else if (file.getName().endsWith(".class")) {
+                String className = packageName + "." + file.getName().replace(".class", "");
+                registerClassIfController(className);
+            }
+        }
+    }
 
-                    if (clazz.isAnnotationPresent(Controller.class)) {
-                        controllers.add(clazz.getSimpleName());
-                        Object instance = clazz.getDeclaredConstructor().newInstance();
+    /**
+     * Inspecte la classe via Reflection pour enregistrer les routes
+     */
+    private void registerClassIfController(String className) {
+        try {
+            Class<?> clazz = Class.forName(className);
 
-                        for (Method m : clazz.getDeclaredMethods()) {
-                            if (m.isAnnotationPresent(UrlMapping.class)) {
-                                String url = m.getAnnotation(UrlMapping.class).value();
-                                mappings.put(url, new VerbAction(instance, m));
-                            }
-                        }
+            if (clazz.isAnnotationPresent(Controller.class)) {
+                Object controllerInstance = clazz.getDeclaredConstructor().newInstance();
+
+                for (Method method : clazz.getDeclaredMethods()) {
+                    if (method.isAnnotationPresent(UrlMapping.class)) {
+                        String url = method.getAnnotation(UrlMapping.class).value();
+                        mappings.put(url, new VerbAction(controllerInstance, method));
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
                 }
             }
+        } catch (Exception e) {
+            // Ignore les classes non instanciables ou abstraites
         }
     }
 
     protected void processRequest(HttpServletRequest req, HttpServletResponse resp) 
             throws ServletException, IOException {
+        
         String uri = req.getRequestURI();
-        String contexte = req.getContextPath();
-        String path = uri.substring(contexte.length());
+        String contextPath = req.getContextPath();
+        String path = uri.substring(contextPath.length());
 
-        if (mappings.containsKey(path)) {
-            VerbAction verbAction = mappings.get(path);
-            Method method = verbAction.getMethod();
-            Object controller = verbAction.getControllerInstance();
+        // 1. Vérification de l'existence de la route
+        VerbAction verbAction = mappings.get(path);
+        if (verbAction == null) {
+            throw new ServletException("Aucune méthode ou URL associée au chemin : " + path);
+        }
 
-            try {
-                Object result = method.invoke(controller);
+        Method method = verbAction.getMethod();
+        Object controller = verbAction.getControllerInstance();
 
-                
-                if (method.isAnnotationPresent(WebApi.class)) {
-                    if (result instanceof String) {
-                        
-                        resp.setContentType("text/plain;charset=UTF-8");
-                        PrintWriter out = resp.getWriter();
-                        out.print(result);
-                        out.flush();
-                    } else {
-                        
-                        resp.setContentType("application/json;charset=UTF-8");
-                        String json = gson.toJson(result);
-                        PrintWriter out = resp.getWriter();
-                        out.print(json);
-                        out.flush();
-                    }
-                } else {
-                    
-                    if (result instanceof String) {
-                        String viewPath = (String) result;
-                        req.getRequestDispatcher(viewPath).forward(req, resp);
-                    } else {
-                        resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
-                                "Type de retour non valide pour le rendu de vue HTML/JSP");
-                    }
-                }
+        if (method == null || controller == null) {
+            throw new ServletException("Action ou instance introuvable pour le chemin : " + path);
+        }
 
-            } catch (Exception e) {
-                throw new ServletException("Erreur lors de l'exécution de la méthode " + method.getName(), e);
+        try {
+            // 2. Matching des paramètres HTTP avec les arguments de la méthode
+            Object[] args = MethodMapper.resolveParameters(method, req);
+
+            // 3. Invocation dynamique
+            System.out.println("--> Execution de la méthode : " + method.getName());
+
+            Object result = method.invoke(controller, args);
+            
+            System.out.println("<-- Fin execution. Résultat retourné : " + result);
+
+            // 4. Redirection vers la vue
+            if (result instanceof String) {
+                String viewPath = (String) result;
+                req.getRequestDispatcher(viewPath).forward(req, resp);
+            } else if (result != null) {
+                throw new ServletException("Le type de retour de la méthode " + method.getName() + " doit être un String (chemin de la vue)");
             }
-        } else {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND, "Aucune route associée à l'URL : " + path);
+
+        } catch (Exception e) {
+            throw new ServletException("Erreur lors de l'exécution de la méthode " + method.getName(), e);
         }
     }
 
