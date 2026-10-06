@@ -16,46 +16,73 @@ public class MethodMapper {
             Class<?> paramType = param.getType();
 
             if (isSimpleType(paramType)) {
-                
                 String paramName = param.getName();
                 String rawValue = req.getParameter(paramName);
                 args[i] = convertValue(rawValue, paramType);
-
             } else {
                 
-                args[i] = populateObject(paramType, req);
-
+                args[i] = populateObject(paramType, req, param.getName());
             }
         }
 
         return args;
     }
 
-    /**
-     * Instancier objet et remplir attributs depuis arguments de req http.
-     */
-    private static Object populateObject(Class<?> clazz, HttpServletRequest req) throws Exception {
-        
-        Object instance = clazz.getDeclaredConstructor().newInstance(); //Creer instance
+    // Convention : prefix-champ1-champ2. Traiter objet non primitif.
+    private static Object populateObject(Class<?> clazz, HttpServletRequest req, String prefix) throws Exception {
+        Object instance = clazz.getDeclaredConstructor().newInstance();
 
-        // Parcourir champ de la classe.
         Field[] fields = clazz.getDeclaredFields();
         for (Field field : fields) {
-            field.setAccessible(true); // champs private.
+            field.setAccessible(true);
             
-            String fieldName = field.getName();
-            String rawValue = req.getParameter(fieldName);
+            // Creer la cle complete pour la recherche de param.
+            String fullPathKey = (prefix != null && !prefix.isEmpty()) 
+                    ? prefix + "-" + field.getName() 
+                    : field.getName();
 
-            if (rawValue != null) {
-                Object convertedValue = convertValue(rawValue, field.getType());
-                field.set(instance, convertedValue);
+            Class<?> fieldType = field.getType();
+
+            if (isSimpleType(fieldType)) {
+                
+                String rawValue = req.getParameter(fullPathKey);
+
+                // Si non trouvé et qu'un préfixe était présent, tente une recherche par le nom de champ simple ("lieu")
+                if (rawValue == null && prefix != null) {
+                    rawValue = req.getParameter(field.getName());
+                }
+
+                if (rawValue != null) {
+                    Object convertedValue = convertValue(rawValue, fieldType);
+                    field.set(instance, convertedValue);
+                }
+
+            } else { //Objet imbrique
+                
+                // verifier si au moins une param de requete contient au depart ce prefix
+                if (hasMatchingParameter(req, fullPathKey)) {
+                    Object nestedInstance = populateObject(fieldType, req, fullPathKey);
+                    field.set(instance, nestedInstance);
+                }
             }
         }
 
         return instance;
     }
 
-    private static boolean isSimpleType(Class<?> type) { // Est primitif
+    //Verifier si la requete contient au moins un parametre commencant par ce prefixe (ex: "user-profil-")
+    private static boolean hasMatchingParameter(HttpServletRequest req, String prefix) {
+        String searchPrefix = prefix + "-";
+        java.util.Enumeration<String> paramNames = req.getParameterNames();
+        while (paramNames.hasMoreElements()) {
+            if (paramNames.nextElement().startsWith(searchPrefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isSimpleType(Class<?> type) {
         return type.isPrimitive() 
             || type == String.class 
             || type == Integer.class 

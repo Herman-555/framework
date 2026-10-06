@@ -84,7 +84,6 @@ public class FrontControllerServlet extends HttpServlet {
         String contextPath = req.getContextPath();
         String path = uri.substring(contextPath.length());
 
-        // 1. Vérification de l'existence de la route
         VerbAction verbAction = mappings.get(path);
         if (verbAction == null) {
             throw new ServletException("Aucune méthode ou URL associée au chemin : " + path);
