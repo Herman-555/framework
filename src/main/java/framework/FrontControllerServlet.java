@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import javax.servlet.ServletException;
+import javax.servlet.annotation.MultipartConfig;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -15,6 +16,11 @@ import javax.servlet.http.HttpServletResponse;
 import framework.annotation.Controller;
 import framework.annotation.UrlMapping;
 
+@MultipartConfig(
+    fileSizeThreshold = 1024 * 1024 * 2,  // 2MB
+    maxFileSize = 1024 * 1024 * 10,       // 10MB
+    maxRequestSize = 1024 * 1024 * 50     // 50MB
+)
 public class FrontControllerServlet extends HttpServlet {
 
     private Map<String, VerbAction> mappings = new HashMap<>();
@@ -23,7 +29,6 @@ public class FrontControllerServlet extends HttpServlet {
     public void init() throws ServletException {
         super.init();
         try {
-            // Récupère le chemin physique du dossier WEB-INF/classes du projet client
             String realPath = getServletContext().getRealPath("/WEB-INF/classes");
             
             if (realPath != null) {
@@ -37,9 +42,6 @@ public class FrontControllerServlet extends HttpServlet {
         }
     }
 
-    /**
-     * Parcours récursif des fichiers .class pour trouver les @Controller et leurs @UrlMapping
-     */
     private void scanDirectory(File dir, String packageName) {
         File[] files = dir.listFiles();
         if (files == null) return;
@@ -55,9 +57,6 @@ public class FrontControllerServlet extends HttpServlet {
         }
     }
 
-    /**
-     * Inspecte la classe via Reflection pour enregistrer les routes
-     */
     private void registerClassIfController(String className) {
         try {
             Class<?> clazz = Class.forName(className);
@@ -97,17 +96,14 @@ public class FrontControllerServlet extends HttpServlet {
         }
 
         try {
-            // 2. Matching des paramètres HTTP avec les arguments de la méthode
             Object[] args = MethodMapper.resolveParameters(method, req);
 
-            // 3. Invocation dynamique
             System.out.println("--> Execution de la méthode : " + method.getName());
 
             Object result = method.invoke(controller, args);
             
             System.out.println("<-- Fin execution. Résultat retourné : " + result);
 
-            // 4. Redirection vers la vue
             if (result instanceof String) {
                 String viewPath = (String) result;
                 req.getRequestDispatcher(viewPath).forward(req, resp);

@@ -1,5 +1,7 @@
 package framework;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -12,6 +14,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.Part;
+
+import java.io.File;
+import framework.type.Fichier;
 
 public class MethodMapper {
 
@@ -27,6 +33,8 @@ public class MethodMapper {
                 String paramName = param.getName();
                 String rawValue = req.getParameter(paramName);
                 args[i] = convertValue(rawValue, paramType);
+            } else if (paramType == Fichier.class) {
+                args[i] = extractFichier(req, param.getName());
             } else if (isCollectionOrArray(paramType)) {
                 args[i] = populateCollectionOrArray(paramType, param.getParameterizedType(), req, param.getName());
             } else {
@@ -44,7 +52,6 @@ public class MethodMapper {
         for (Field field : fields) {
             field.setAccessible(true);
             
-            // Construit la clé au format prefix-champ (ex: listepersonne[0]-nom)
             String fullPathKey = (prefix != null && !prefix.isEmpty()) 
                     ? prefix + "-" + field.getName() 
                     : field.getName();
@@ -62,13 +69,21 @@ public class MethodMapper {
                     Object convertedValue = convertValue(rawValue, fieldType);
                     field.set(instance, convertedValue);
                 }
+            } else if (fieldType == Fichier.class) {
+                Fichier fichier = extractFichier(req, fullPathKey);
+                if (fichier == null && prefix != null) {
+                    fichier = extractFichier(req, field.getName());
+                }
+                if (fichier != null) {
+                    field.set(instance, fichier);
+                }
             } else if (isCollectionOrArray(fieldType)) {
-                if (hasMatchingParameter(req, fullPathKey)) {
+                if (hasMatchingParameterOrPart(req, fullPathKey)) {
                     Object collectionObj = populateCollectionOrArray(fieldType, field.getGenericType(), req, fullPathKey);
                     field.set(instance, collectionObj);
                 }
             } else { 
-                if (hasMatchingParameter(req, fullPathKey)) {
+                if (hasMatchingParameterOrPart(req, fullPathKey)) {
                     Object nestedInstance = populateObject(fieldType, req, fullPathKey);
                     field.set(instance, nestedInstance);
                 }
@@ -79,7 +94,6 @@ public class MethodMapper {
     }
 
     private static Object populateCollectionOrArray(Class<?> targetType, Type genericType, HttpServletRequest req, String prefix) throws Exception {
-        // 1. Déterminer le type des éléments de la collection/tableau
         Class<?> elementType = Object.class;
         if (genericType instanceof ParameterizedType) {
             ParameterizedType pt = (ParameterizedType) genericType;
@@ -91,7 +105,7 @@ public class MethodMapper {
             elementType = targetType.getComponentType();
         }
 
-        // 2. Cas des types simples (ex: List<String> ou String[])
+        // Cas 1 : Types simples
         if (isSimpleType(elementType)) {
             String[] values = req.getParameterValues(prefix);
             if (values == null) {
@@ -115,26 +129,82 @@ public class MethodMapper {
             }
         }
 
-        // 3. Cas des objets complexes (ex: List<Personne>) avec format listepersonne[0]-nom
+        // Cas 2 : Fichiers multiples (ex: List<Fichier> ou Fichier[])
+        if (elementType == Fichier.class) {
+            List<Fichier> tempFichiers = new ArrayList<>();
+            int i = 0;
+            while (true) {
+                String itemPrefix1 = prefix + "[" + i + "]";
+                String itemPrefix2 = prefix + "-" + i;
+                
+                Fichier f = extractFichier(req, itemPrefix1);
+                if (f == null) {
+                    f = extractFichier(req, itemPrefix2);
+                }
+                // Si on a un input de type file avec attribut name="prefix[]" géré par les parts multiples
+                if (f == null && i == 0) {
+                    try {
+                        Collection<Part> parts = req.getParts();
+                        for (Part p : parts) {
+                            if (p.getName().equals(prefix) || p.getName().equals(prefix + "[]")) {
+                                if (p.getSize() > 0) {
+                                    tempFichiers.add(convertPartToFichier(p));
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+
+                if (f != null) {
+                    tempFichiers.add(f);
+                } else if (tempFichiers.isEmpty() && f == null && i > 0) {
+                    // S'il n'y a pas de format indicé [i], on arrête
+                    break;
+                }
+
+                if (f == null && i > 0 && tempFichiers.size() == 0) {
+                    break;
+                }
+                
+                // Si on a évalué les parts directes, pas besoin de boucler indéfiniment si aucune correspondance indicée
+                if (f == null && i > 0) {
+                    break;
+                }
+                i++;
+                if (i > 1000) break;
+            }
+
+            if (!tempFichiers.isEmpty()) {
+                if (targetType.isArray()) {
+                    Object array = Array.newInstance(Fichier.class, tempFichiers.size());
+                    for (int j = 0; j < tempFichiers.size(); j++) {
+                        Array.set(array, j, tempFichiers.get(j));
+                    }
+                    return array;
+                } else {
+                    Collection<Object> collection = createCollectionInstance(targetType);
+                    collection.addAll(tempFichiers);
+                    return collection;
+                }
+            }
+        }
+
+        // Cas 3 : Objets complexes
         List<Object> tempElements = new ArrayList<>();
         int i = 0;
         while (true) {
-            // Le préfixe de l'élément individuel devient: listepersonne[0]
             String itemPrefix = prefix + "[" + i + "]";
 
-            if (hasMatchingParameter(req, itemPrefix)) {
-                // populateObject va combiner itemPrefix avec le nom du champ en utilisant un tiret (-)
-                // Ce qui donnera: listepersonne[0]-nom, listepersonne[0]-prenom, etc.
+            if (hasMatchingParameterOrPart(req, itemPrefix)) {
                 Object item = populateObject(elementType, req, itemPrefix);
                 tempElements.add(item);
             } else {
                 break;
             }
             i++;
-            if (i > 1000) break; // Sécurité anti-boucle infinie
+            if (i > 1000) break;
         }
 
-        // 4. Restitution en Tableau ou Collection
         if (targetType.isArray()) {
             Object array = Array.newInstance(elementType, tempElements.size());
             for (int j = 0; j < tempElements.size(); j++) {
@@ -148,6 +218,64 @@ public class MethodMapper {
         }
     }
 
+    
+    private static Fichier extractFichier(HttpServletRequest req, String paramName) {
+        try {
+            Part part = req.getPart(paramName);
+            if (part != null && part.getSize() > 0) {
+                return convertPartToFichier(part);
+            }
+        } catch (Exception e) {
+            
+        }
+        return null;
+    }
+
+    private static Fichier convertPartToFichier(Part part) throws Exception {
+        String submittedFileName = extractFileName(part);
+        String name = "";
+        String extension = "";
+
+        if (submittedFileName != null && !submittedFileName.isEmpty()) {
+            // Nettoyage du chemin (certains navigateurs envoient le chemin complet du fichier)
+            File f = new File(submittedFileName);
+            String pureName = f.getName();
+            
+            int lastDot = pureName.lastIndexOf('.');
+            if (lastDot > 0) {
+                name = pureName.substring(0, lastDot);
+                extension = pureName.substring(lastDot + 1);
+            } else {
+                name = pureName;
+                extension = "";
+            }
+        }
+
+        byte[] binaryBytes;
+        try (InputStream is = part.getInputStream();
+             ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
+            int nRead;
+            byte[] data = new byte[16384];
+            while ((nRead = is.read(data, 0, data.length)) != -1) {
+                buffer.write(data, 0, nRead);
+            }
+            binaryBytes = buffer.toByteArray();
+        }
+
+        return new Fichier(name, extension, binaryBytes);
+    }
+
+    private static String extractFileName(Part part) {
+        String contentDisp = part.getHeader("content-disposition");
+        for (String cd : contentDisp.split(";")) {
+            if (cd.trim().startsWith("filename")) {
+                String fileName = cd.substring(cd.indexOf('=') + 1).trim().replace("\"", "");
+                return fileName;
+            }
+        }
+        return null;
+    }
+
     private static Collection<Object> createCollectionInstance(Class<?> collectionType) {
         if (Set.class.isAssignableFrom(collectionType)) {
             return new HashSet<>();
@@ -159,9 +287,11 @@ public class MethodMapper {
         return type.isArray() || Collection.class.isAssignableFrom(type);
     }
 
-    private static boolean hasMatchingParameter(HttpServletRequest req, String prefix) {
+    private static boolean hasMatchingParameterOrPart(HttpServletRequest req, String prefix) {
         String searchPrefix1 = prefix + "-";
         String searchPrefix2 = prefix + "[";
+        
+        // Vérification dans les paramètres classiques
         java.util.Enumeration<String> paramNames = req.getParameterNames();
         while (paramNames.hasMoreElements()) {
             String name = paramNames.nextElement();
@@ -169,6 +299,17 @@ public class MethodMapper {
                 return true;
             }
         }
+
+        // Vérification dans les parts (fichiers)
+        try {
+            for (Part part : req.getParts()) {
+                String name = part.getName();
+                if (name.startsWith(searchPrefix1) || name.startsWith(searchPrefix2) || name.equals(prefix)) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {}
+
         return false;
     }
 
