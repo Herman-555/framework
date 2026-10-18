@@ -1,3 +1,4 @@
+framework\type\Fichier.class
 framework\annotation\UrlMapping.class
 framework\FrontControllerServlet.class
 framework\MethodMapper.class
