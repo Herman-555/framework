@@ -1,6 +1,6 @@
 @echo off
 echo =========================================
-echo Compilation du Framework Java 8 (JAR)
+echo Compilation du Framework Java 25 (framework-9.0.jar)
 echo =========================================
 
 REM Nettoyage et packaging via Maven

@@ -1,6 +1,5 @@
-H:\S5\naina\framework\src\main\java\framework\annotation\UrlMapping.java
-H:\S5\naina\framework\src\main\java\framework\type\Fichier.java
-H:\S5\naina\framework\src\main\java\framework\MethodMapper.java
-H:\S5\naina\framework\src\main\java\framework\annotation\Controller.java
-H:\S5\naina\framework\src\main\java\framework\FrontControllerServlet.java
-H:\S5\naina\framework\src\main\java\framework\VerbAction.java
+H:\framework\src\main\java\framework\annotation\Controller.java
+H:\framework\src\main\java\framework\annotation\UrlMapping.java
+H:\framework\src\main\java\framework\FrontControllerServlet.java
+H:\framework\src\main\java\framework\MySession.java
+H:\framework\src\main\java\framework\VerbAction.java
