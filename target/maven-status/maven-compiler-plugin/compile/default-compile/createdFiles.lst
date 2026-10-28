@@ -2,4 +2,5 @@ framework\MySession.class
 framework\annotation\UrlMapping.class
 framework\FrontControllerServlet.class
 framework\VerbAction.class
+framework\annotation\Auth.class
 framework\annotation\Controller.class

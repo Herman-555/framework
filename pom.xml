@@ -6,11 +6,11 @@
 
     <groupId>framework</groupId>
     <artifactId>framework</artifactId>
-    <version>9.0</version>
+    <version>10.0</version>
     <packaging>jar</packaging>
 
     <properties>
-        <maven.compiler.release>25</maven.compiler.release>
+        <maven.compiler.release>8</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -23,12 +23,6 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Formatter JSON (Gson) -->
-        <dependency>
-            <groupId>com.google.code.gson</groupId>
-            <artifactId>gson</artifactId>
-            <version>2.8.9</version>
-        </dependency>
     </dependencies>
 
     <build>
@@ -38,7 +32,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.14.1</version>
                 <configuration>
-                    <release>25</release>
+                    <release>8</release>
                 </configuration>
             </plugin>
         </plugins>

@@ -1,19 +1,18 @@
 @echo off
+setlocal
+cd /d "%~dp0"
+
 echo =========================================
-echo Compilation du Framework Java 25 (framework-9.0.jar)
+echo Packaging du framework-10.0.jar (bytecode Java 8, JDK 25)
 echo =========================================
 
-REM Nettoyage et packaging via Maven
 call mvn clean package
-
-IF %ERRORLEVEL% NEQ 0 (
+if errorlevel 1 (
     echo.
-    echo [ERREUR] La compilation a échoué. Veuillez vérifier les erreurs ci-dessus.
-    pause
-    exit /b %ERRORLEVEL%
+    echo [ERREUR] La creation du package a echoue.
+    exit /b 1
 )
 
 echo.
-echo [SUCCÈS] Le framework a été compilé avec succès !
-echo Le fichier JAR se trouve dans le dossier 'target/'.
-pause
+echo [SUCCES] Package cree : target\framework-10.0.jar
+exit /b 0
