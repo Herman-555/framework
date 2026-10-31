@@ -5,8 +5,8 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>framework</groupId>
-    <artifactId>framework</artifactId>
-    <version>10.0</version>
+    <artifactId>frmaework</artifactId>
+    <version>11.0</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -26,6 +26,7 @@
     </dependencies>
 
     <build>
+        <finalName>frmaework-11.0</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

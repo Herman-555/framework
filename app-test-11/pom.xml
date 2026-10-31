@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>framework.test</groupId>
-    <artifactId>app-test-10-bis</artifactId>
+    <artifactId>app-test-11</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>war</packaging>
 
@@ -21,7 +21,7 @@
             <artifactId>framework</artifactId>
             <version>10.0</version>
             <scope>system</scope>
-            <systemPath>${project.basedir}/src/main/webapp/WEB-INF/lib/framework-10.0.jar</systemPath>
+            <systemPath>${project.basedir}/src/main/webapp/WEB-INF/lib/frmaework-11.0.jar</systemPath>
         </dependency>
 
         <dependency>
@@ -33,7 +33,7 @@
     </dependencies>
 
     <build>
-        <finalName>app-test-10-bis</finalName>
+        <finalName>app-test-11</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

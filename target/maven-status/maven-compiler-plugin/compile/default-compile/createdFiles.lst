@@ -3,5 +3,6 @@ framework\annotation\UrlMapping.class
 framework\FrontControllerServlet.class
 framework\annotation\Auth.class
 framework\annotation\Controller.class
+framework\Constructeur.class
 framework\VerbAction.class
 framework\annotation\Role.class

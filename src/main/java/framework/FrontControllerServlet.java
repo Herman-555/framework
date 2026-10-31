@@ -81,7 +81,7 @@ public class FrontControllerServlet extends HttpServlet {
     try {
       Class<?> clazz = Class.forName(className);
       if (clazz.isAnnotationPresent(Controller.class)) {
-        Object controllerInstance = clazz.getDeclaredConstructor().newInstance();
+        Object controllerInstance = Constructeur.construireObjet(clazz);
         for (Method method : clazz.getDeclaredMethods()) {
           if (method.isAnnotationPresent(UrlMapping.class)) {
             mappings.put(method.getAnnotation(UrlMapping.class).value(), new VerbAction(controllerInstance, method));
