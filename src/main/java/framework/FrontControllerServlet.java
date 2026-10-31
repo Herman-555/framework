@@ -2,13 +2,16 @@ package framework;
 
 import framework.annotation.Auth;
 import framework.annotation.Controller;
+import framework.annotation.Role;
 import framework.annotation.UrlMapping;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.URLDecoder;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.servlet.ServletContext;
@@ -22,6 +25,7 @@ public class FrontControllerServlet extends HttpServlet {
   private final Map<String, VerbAction> mappings = new HashMap<String, VerbAction>();
   private String sessionMapKey;
   private String sessionCookieName;
+  private Set<String> configuredRoles;
 
   @Override
   public void init() throws ServletException {
@@ -29,6 +33,7 @@ public class FrontControllerServlet extends HttpServlet {
     ServletContext context = getServletContext();
     sessionMapKey = context.getInitParameter("sessionMapKey");
     sessionCookieName = context.getInitParameter("sessionCookieName");
+    configuredRoles = parseRoles(context.getInitParameter("roles"));
     if (sessionMapKey == null || sessionMapKey.trim().isEmpty()) {
       throw new ServletException("Le context-param 'sessionMapKey' est obligatoire.");
     }
@@ -47,6 +52,15 @@ public class FrontControllerServlet extends HttpServlet {
     } catch (Exception e) {
       throw new ServletException("Erreur lors de l'initialisation du mapping dynamique", e);
     }
+  }
+
+  private Set<String> parseRoles(String rolesParameter) {
+    Set<String> roles = new HashSet<String>();
+    if (rolesParameter == null) return roles;
+    for (String role : rolesParameter.split(",")) {
+      if (!role.trim().isEmpty()) roles.add(role.trim());
+    }
+    return roles;
   }
 
   private void scanDirectory(File dir, String packageName) {
@@ -105,8 +119,13 @@ public class FrontControllerServlet extends HttpServlet {
     Object controller = action.getControllerInstance();
     if (method == null || controller == null) throw new ServletException("Action ou instance introuvable pour le chemin : " + path);
 
-    if (method.isAnnotationPresent(Auth.class)
-        && (clientSession == null || !Boolean.TRUE.equals(clientSession.get("authenticated")))) {
+    boolean authenticated = clientSession != null && clientSession.isAuthenticated();
+    if (method.isAnnotationPresent(Auth.class) && !authenticated) {
+      req.getRequestDispatcher("/error.jsp").forward(req, resp);
+      return;
+    }
+    Role roleAnnotation = method.getAnnotation(Role.class);
+    if (roleAnnotation != null && (!authenticated || !hasAllowedRole(clientSession, roleAnnotation))) {
       req.getRequestDispatcher("/error.jsp").forward(req, resp);
       return;
     }
@@ -124,6 +143,7 @@ public class FrontControllerServlet extends HttpServlet {
           sessionCookie.setMaxAge(60 * 60 * 24);
           resp.addCookie(sessionCookie);
         }
+
         req.setAttribute("mySession", clientSession);
         result = method.invoke(controller, clientSession);
       } else if (parameterTypes.length == 0) {
@@ -136,6 +156,14 @@ public class FrontControllerServlet extends HttpServlet {
     } catch (Exception e) {
       throw new ServletException("Erreur lors de l'exécution de la méthode " + method.getName(), e);
     }
+  }
+
+  private boolean hasAllowedRole(MySession session, Role roleAnnotation) {
+    for (String role : roleAnnotation.value()) {
+      if (role == null || !configuredRoles.contains(role.trim())) continue;
+      if (session.hasRole(role.trim())) return true;
+    }
+    return false;
   }
 
   @Override
