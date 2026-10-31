@@ -20,15 +20,23 @@ import javax.servlet.http.HttpServletResponse;
 
 public class FrontControllerServlet extends HttpServlet {
   private final Map<String, VerbAction> mappings = new HashMap<String, VerbAction>();
-  private static final String SESSION_MAP_KEY = "appSessionsMap";
-  private static final String SESSION_COOKIE_NAME = "app-test";
+  private String sessionMapKey;
+  private String sessionCookieName;
 
   @Override
   public void init() throws ServletException {
     super.init();
     ServletContext context = getServletContext();
-    if (context.getAttribute(SESSION_MAP_KEY) == null) {
-      context.setAttribute(SESSION_MAP_KEY, new ConcurrentHashMap<String, MySession>());
+    sessionMapKey = context.getInitParameter("sessionMapKey");
+    sessionCookieName = context.getInitParameter("sessionCookieName");
+    if (sessionMapKey == null || sessionMapKey.trim().isEmpty()) {
+      throw new ServletException("Le context-param 'sessionMapKey' est obligatoire.");
+    }
+    if (sessionCookieName == null || sessionCookieName.trim().isEmpty()) {
+      throw new ServletException("Le context-param 'sessionCookieName' est obligatoire.");
+    }
+    if (context.getAttribute(sessionMapKey) == null) {
+      context.setAttribute(sessionMapKey, new ConcurrentHashMap<String, MySession>());
     }
     try {
       String realPath = context.getRealPath("/WEB-INF/classes");
@@ -75,13 +83,13 @@ public class FrontControllerServlet extends HttpServlet {
       throws ServletException, IOException {
     ServletContext context = getServletContext();
     @SuppressWarnings("unchecked")
-    Map<String, MySession> sessionsMap = (Map<String, MySession>) context.getAttribute(SESSION_MAP_KEY);
+    Map<String, MySession> sessionsMap = (Map<String, MySession>) context.getAttribute(sessionMapKey);
 
     String sessionUuid = null;
     Cookie[] cookies = req.getCookies();
     if (cookies != null) {
       for (Cookie cookie : cookies) {
-        if (SESSION_COOKIE_NAME.equals(cookie.getName())) {
+        if (sessionCookieName.equals(cookie.getName())) {
           sessionUuid = cookie.getValue();
           break;
         }
@@ -111,7 +119,7 @@ public class FrontControllerServlet extends HttpServlet {
           clientSession = new MySession();
           sessionUuid = UUID.randomUUID().toString();
           sessionsMap.put(sessionUuid, clientSession);
-          Cookie sessionCookie = new Cookie(SESSION_COOKIE_NAME, sessionUuid);
+          Cookie sessionCookie = new Cookie(sessionCookieName, sessionUuid);
           sessionCookie.setPath(req.getContextPath().length() == 0 ? "/" : req.getContextPath());
           sessionCookie.setMaxAge(60 * 60 * 24);
           resp.addCookie(sessionCookie);
